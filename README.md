@@ -35,3 +35,7 @@ git remote add origin https://github.com/<username>/zameen-saathi.git
 git branch -M main
 git push -u origin main
 ```
+
+## Render par deploy
+- Backend: Web Service, Root Directory `backend`, Build `pip install -r requirements.txt`, Start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, env `PYTHON_VERSION=3.12.3`, `CORS_ORIGINS=<frontend url>`.
+- Frontend: Static Site, Root Directory `frontend`, Build `npm install && npm run build`, Publish `dist`, env `VITE_API_URL=<backend url>`.
