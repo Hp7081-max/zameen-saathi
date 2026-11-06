@@ -8,7 +8,14 @@ export type Flag = {
   code: string; severity: "high" | "medium" | "low"; plot: string;
   reason_hi: string; reason_en: string; source: "rule" | "model";
 };
-export type Analysis = { summary_hi: string; plain_hi: string[]; flags: Flag[]; disclaimer: string };
+export type ChecklistItem = {
+  code: string; plots: string[]; who_hi: string; who_en: string;
+  docs_hi: string[]; docs_en: string[]; ask_hi: string; ask_en: string;
+};
+export type Analysis = {
+  summary_hi: string; summary_en: string; plain_hi: string[]; plain_en: string[];
+  flags: Flag[]; checklist: ChecklistItem[]; disclaimer: string; disclaimer_en: string;
+};
 export type Answer = { answer: string; sources: string[]; disclaimer: string };
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
@@ -16,7 +23,7 @@ let token = "";
 export const setToken = (t: string) => { token = t; };
 export const hasToken = () => token !== "";
 
-class ApiError extends Error { constructor(public status: number, msg: string) { super(msg); } }
+export class ApiError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 
 const json = async (r: Response) => {
   if (!r.ok) {

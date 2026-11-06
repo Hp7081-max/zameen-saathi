@@ -24,3 +24,11 @@ td input { width:92px; } .owner { display:flex; gap:6px; align-items:center; mar
 .plain li { padding:6px 0; border-bottom:1px dashed var(--line); }
 .err { color:var(--high); font-weight:600; } .answer { background:#eef4ef; padding:10px 14px; border-radius:6px; }
 @media print { .no-print, .top .link, label.btn { display:none !important; } body { background:#fff; font-size:14pt; } .card { border:0; } }
+
+/* नक्शा, तहसील चेकलिस्ट */
+.map { margin: 16px 0; }
+.map svg { width: 100%; max-height: 360px; background: #fff; border: 1px solid var(--line); }
+.checklist { list-style: none; padding: 0; display: grid; gap: 12px; }
+.checklist > li { background: #fff; border: 1px solid var(--line); padding: 10px 14px; }
+.checklist p { margin: 4px 0; }
+.checklist ul { margin: 2px 0 6px; padding-left: 20px; }

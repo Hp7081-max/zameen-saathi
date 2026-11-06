@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 
 DISCLAIMER = "यह कानूनी सलाह नहीं है। पक्की जानकारी के लिए तहसील, लेखपाल या वकील से मिलें।"
+DISCLAIMER_EN = "This is not legal advice. For certainty, meet the tehsil, the lekhpal or a lawyer."
 
 
 class Owner(BaseModel):
@@ -32,11 +33,26 @@ class Flag(BaseModel):
     source: str  # rule | model
 
 
+class ChecklistItem(BaseModel):
+    code: str
+    plots: list[str] = Field(default_factory=list)
+    who_hi: str
+    who_en: str
+    docs_hi: list[str]
+    docs_en: list[str]
+    ask_hi: str
+    ask_en: str
+
+
 class AnalyzeResponse(BaseModel):
     summary_hi: str
+    summary_en: str = ""
     plain_hi: list[str] = Field(default_factory=list)  # हर प्लॉट की सरल हिंदी व्याख्या
+    plain_en: list[str] = Field(default_factory=list)
     flags: list[Flag]
+    checklist: list[ChecklistItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
+    disclaimer_en: str = DISCLAIMER_EN
 
 
 class AskRequest(BaseModel):

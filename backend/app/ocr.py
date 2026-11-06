@@ -11,16 +11,16 @@ from typing import Protocol
 from .schemas import Owner, Plot, Record
 
 DEMO_RECORD = Record(district="demo", plots=[
-    Plot(khasra="101", khata="12", area_ha=0.52, map_area_ha=0.52,
+    Plot(khasra="101", khata="12", area_ha=0.52, map_area_ha=0.52, bbox=[0, 0, 100, 80],
          owners=[Owner(name="Ramesh", share=0.5), Owner(name="Suresh", share=0.5)]),
-    Plot(khasra="102", khata="12", area_ha=1.20, map_area_ha=0.80,
+    Plot(khasra="102", khata="12", area_ha=1.20, map_area_ha=0.80, bbox=[100, 0, 100, 80],
          owners=[Owner(name="Sita Devi", share=0.6), Owner(name="Mohan", share=0.3)]),
-    Plot(khasra="101", khata="15", area_ha=0.52, map_area_ha=0.52,
+    Plot(khasra="101", khata="15", area_ha=0.52, map_area_ha=0.52, bbox=[0, 0, 100, 80],
          owners=[Owner(name="Ramesh Kr.", share=1.0)], transfers_last_2y=4),
 ])
 
 DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
-ROW = re.compile(r"(\d+(?:/\d+)?)\s+(\d+)\s+(\d+\.\d+|\d+)\s+(.+)")
+ROW = re.compile(r"(\d+(?:/\d+)?)\s+(\d+)\s+(\d+[.,]\d+|\d+)\s+(.+)")
 OWNER = re.compile(r"([^\d,]+?)\s*(\d*\.\d+|\d+(?:/\d+)?)\s*(?:,|$)")
 
 
@@ -33,13 +33,13 @@ def _share(s: str) -> float:
 
 def parse_text(text: str) -> dict:
     plots = []
-    for line in text.translate(DIGITS).splitlines():
+    for line in text.translate(DIGITS).replace("|", " ").splitlines():  # तालिका की खड़ी रेखा (|) को खाली जगह मानो
         m = ROW.search(line.strip())
         if not m:
             continue
         khasra, khata, area, rest = m.groups()
         owners = [{"name": n.strip(" |"), "share": _share(s)} for n, s in OWNER.findall(rest)]
-        plots.append({"khasra": khasra, "khata": khata, "area_ha": float(area), "owners": owners})
+        plots.append({"khasra": khasra, "khata": khata, "area_ha": float(area.replace(",", ".")), "owners": owners})
     return {"district": "", "plots": plots}
 
 

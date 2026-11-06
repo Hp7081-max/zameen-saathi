@@ -146,7 +146,9 @@ def main():
             if not a.no_images and v < a.images:
                 plots = village["record"]["plots"]
                 for pg in range(0, len(plots), 12):
-                    scan_effect(render_page(plots[pg:pg + 12]), rng).save(out / f"village{v}_p{pg // 12}.png")
+                    stem = out / f"village{v}_p{pg // 12}"
+                    scan_effect(render_page(plots[pg:pg + 12]), rng).save(f"{stem}.png")
+                    Path(f"{stem}.json").write_text(json.dumps({"plots": plots[pg:pg + 12]}, ensure_ascii=False), encoding="utf-8")
     print(f"{a.villages} गाँव लिखे -> {out}")
 
 

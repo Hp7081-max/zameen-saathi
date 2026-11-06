@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import auth, qa
 from .anomaly import run_anomaly
-from .explain import explain
+from .explain import explain, explain_en
+from .guide import checklist
 from .ocr import get_engine, is_pdf
 from .rules import run_rules
 from .schemas import (AnalyzeResponse, AskRequest, AskResponse, OtpRequest, OtpResponse,
@@ -22,6 +23,7 @@ app.add_middleware(
 MAX_BYTES = 10 * 1024 * 1024
 ALLOWED_EXT = (".png", ".jpg", ".jpeg", ".webp", ".pdf")
 authed = [Depends(auth.require_session)]
+auth.check_config()  # कमज़ोर सेटिंग के साथ SMS मोड में सर्वर शुरू ही न हो
 
 
 @app.get("/api/health")
@@ -45,7 +47,7 @@ def end_session(token: str = Depends(auth.require_session)):
     return {"deleted": True}
 
 
-@app.post("/api/extract", response_model=Record, dependencies=authed)
+@app.post("/api/extract", response_model=Record, dependencies=[Depends(auth.limit_extract)])
 async def extract(file: UploadFile):
     name = (file.filename or "").lower()
     if not name.endswith(ALLOWED_EXT):
@@ -70,7 +72,9 @@ def analyze(rec: Record):
     ruled = {f.plot for f in rule_flags}  # ML सिर्फ़ उन प्लॉट को देखता है जिन्हें rules ने नहीं पकड़ा
     flags = sorted(rule_flags + run_anomaly(rec, skip=ruled), key=lambda f: order.index(f.severity))
     summary = f"{len(rec.plots)} प्लॉट मिले। {len(flags)} जगह दोबारा जाँचने की ज़रूरत है।"
-    return AnalyzeResponse(summary_hi=summary, plain_hi=explain(rec), flags=flags)
+    summary_en = f"{len(rec.plots)} plots found. {len(flags)} places need a second look."
+    return AnalyzeResponse(summary_hi=summary, summary_en=summary_en, plain_hi=explain(rec), plain_en=explain_en(rec),
+                           flags=flags, checklist=checklist(flags))
 
 
 @app.post("/api/ask", response_model=AskResponse, dependencies=authed)
