@@ -1,0 +1,14 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      OCR_ENGINE: tesseract
+      OTP_MODE: demo
+      AUTH_REQUIRED: "1"
+      AUTH_SALT: badal-do
+      CORS_ORIGINS: http://localhost:8080
+    ports: ["8000:8000"]
+  frontend:
+    build: ./frontend
+    ports: ["8080:80"]
+    depends_on: [backend]

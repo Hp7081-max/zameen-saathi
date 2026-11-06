@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field
 
-DISCLAIMER = "Yeh kanooni salah nahi hai. Pakki jaankari ke liye tehsil, lekhpal ya vakil se milein."
+DISCLAIMER = "यह कानूनी सलाह नहीं है। पक्की जानकारी के लिए तहसील, लेखपाल या वकील से मिलें।"
 
 
 class Owner(BaseModel):
     name: str
-    share: float  # plot ka hissa, 0 se 1
+    share: float  # प्लॉट का हिस्सा, 0 से 1
 
 
 class Plot(BaseModel):
@@ -15,6 +15,7 @@ class Plot(BaseModel):
     map_area_ha: float | None = None
     owners: list[Owner] = Field(default_factory=list)
     transfers_last_2y: int = 0
+    bbox: list[float] | None = None  # नक्शे में [x, y, w, h] (मीटर)
 
 
 class Record(BaseModel):
@@ -33,6 +34,7 @@ class Flag(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     summary_hi: str
+    plain_hi: list[str] = Field(default_factory=list)  # हर प्लॉट की सरल हिंदी व्याख्या
     flags: list[Flag]
     disclaimer: str = DISCLAIMER
 
@@ -45,3 +47,23 @@ class AskResponse(BaseModel):
     answer: str
     sources: list[str]
     disclaimer: str = DISCLAIMER
+
+
+class OtpRequest(BaseModel):
+    phone: str
+    consent: bool
+
+
+class VerifyRequest(BaseModel):
+    phone: str
+    otp: str
+
+
+class OtpResponse(BaseModel):
+    sent: bool = True
+    debug_otp: str | None = None  # सिर्फ़ OTP_MODE=demo में
+
+
+class SessionResponse(BaseModel):
+    token: str
+    expires_in: int

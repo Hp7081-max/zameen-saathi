@@ -21,6 +21,12 @@ def _similar(a: str, b: str) -> bool:
     return ta < tb or tb < ta or SequenceMatcher(None, a, b).ratio() >= 0.9
 
 
+def _inter(a, b) -> float:
+    w = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
+    h = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
+    return max(w, 0) * max(h, 0)
+
+
 def run_rules(rec: Record) -> list[Flag]:
     flags: list[Flag] = []
     khatas = defaultdict(set)
@@ -45,6 +51,16 @@ def run_rules(rec: Record) -> list[Flag]:
             flags.append(_f("DUP_KHASRA", "high", khasra,
                             "यह खसरा एक से ज़्यादा खातों में दर्ज है।",
                             "Same plot appears under more than one khata."))
+    boxed = [p for p in rec.plots if p.bbox]
+    for i, a in enumerate(boxed):
+        for b in boxed[i + 1:]:
+            if a.khasra == b.khasra:
+                continue
+            if _inter(a.bbox, b.bbox) > 0.05 * min(a.bbox[2] * a.bbox[3], b.bbox[2] * b.bbox[3]):
+                for p in (a, b):
+                    flags.append(_f("OVERLAP", "high", p.khasra,
+                                    f"नक्शे में खसरा {a.khasra} और {b.khasra} एक-दूसरे पर चढ़ रहे हैं (कब्ज़े का संकेत हो सकता है)।",
+                                    f"Plots {a.khasra} and {b.khasra} overlap on the map."))
     names = sorted({o.name for p in rec.plots for o in p.owners})
     for i, a in enumerate(names):
         for b in names[i + 1:]:

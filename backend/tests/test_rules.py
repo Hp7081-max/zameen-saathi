@@ -1,6 +1,7 @@
+from app import qa
+from app.explain import explain
 from app.ocr import DEMO_RECORD
 from app.rules import run_rules
-from app import qa
 
 
 def test_demo_record_flags():
@@ -8,6 +9,15 @@ def test_demo_record_flags():
     assert {"SHARE_SUM", "AREA_MISMATCH", "DUP_KHASRA", "MANY_TRANSFERS", "SIMILAR_NAMES"} <= codes
 
 
-def test_qa_says_dont_know_without_corpus():
-    r = qa.answer("mutation kaise hota hai")
-    assert r.sources == []
+def test_explain_hindi():
+    lines = explain(DEMO_RECORD)
+    assert len(lines) == 3 and "आधा" in lines[0]
+
+
+def test_qa_known_term():
+    r = qa.answer("खसरा क्या होता है?")
+    assert r.sources == ["glossary_hi.txt"]
+
+
+def test_qa_says_dont_know():
+    assert qa.answer("mutation kaise hota hai").sources == []

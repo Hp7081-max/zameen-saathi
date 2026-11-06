@@ -1,4 +1,4 @@
-"""Grounded Q&A: jawab sirf corpus/*.txt se. Kuch na mile to 'pata nahi'. Baad me embeddings + LLM yahin judenge."""
+"""Grounded Q&A: जवाब सिर्फ़ corpus/*.txt से। कुछ न मिले तो 'पता नहीं'। बाद में embeddings + LLM यहीं जुड़ेंगे।"""
 import re
 from pathlib import Path
 
@@ -9,12 +9,12 @@ MIN_OVERLAP = 2
 
 
 def _tokens(text: str) -> set[str]:
-    return {t for t in re.split(r"[\s,.;:?!()\-]+", text.lower()) if len(t) > 2}
+    return {t for t in re.split(r"[\s,.;:?!()\-।]+", text.lower()) if len(t) > 2}
 
 
 def _load() -> list[tuple[str, str]]:
     chunks = []
-    for f in CORPUS_DIR.glob("*.txt"):
+    for f in sorted(CORPUS_DIR.glob("*.txt")):
         for para in f.read_text(encoding="utf-8").split("\n\n"):
             if para.strip():
                 chunks.append((f.name, para.strip()))
