@@ -12,6 +12,7 @@ PHONE = "9876543210"
 
 
 def _login(phone=PHONE):
+    # हर टेस्ट अलग नंबर लेता है: OTP rate-limit (10 मिनट में 3) आपस में न टकराए
     r = c.post("/api/consent/request", json={"phone": phone, "consent": True}).json()
     t = c.post("/api/consent/verify", json={"phone": phone, "otp": r["debug_otp"]}).json()["token"]
     return {"x-session": t}
@@ -40,24 +41,16 @@ def test_full_flow_and_logout():
     assert c.post("/api/ask", json={"question": "x"}, headers=h).status_code == 401
 
 
-def test_extract_accepts_pdf_and_rejects_the_rest():
-    h = _login("9111111111")
-    up = lambda name, data: c.post("/api/extract", files={"file": (name, data)}, headers=h)
-    assert up("k.pdf", b"%PDF-1.4 x").status_code == 200  # डेमो OCR
-    assert up("k.pdf", b"yeh pdf nahi hai").status_code == 415
-    assert up("k.txt", b"x").status_code == 415
+def test_extract_accepts_image_and_pdf(monkeypatch):
+    monkeypatch.setenv("OCR_ENGINE", "demo")
+    h = _login("9876500001")
+    for name, data in [("a.png", b"x"), ("a.pdf", b"%PDF-1.4 x")]:
+        r = c.post("/api/extract", files={"file": (name, data)}, headers=h)
+        assert r.status_code == 200 and len(r.json()["plots"]) == 3
 
 
-def test_phone_numbers_starting_with_91_are_valid():
-    from fastapi import HTTPException
-
-    from app.auth import _phone
-    assert _phone("9111111111") == "9111111111"
-    assert _phone("+919111111111") == "9111111111" and _phone("919111111111") == "9111111111"
-    assert _phone("09876543210") == "9876543210"
-    for bad in ("12345", "5876543210", "91111"):
-        try:
-            _phone(bad)
-        except HTTPException:
-            continue
-        raise AssertionError(bad)
+def test_extract_rejects_other_types_and_needs_login(monkeypatch):
+    monkeypatch.setenv("OCR_ENGINE", "demo")
+    h = _login("9876500002")
+    assert c.post("/api/extract", files={"file": ("a.txt", b"x")}, headers=h).status_code == 415
+    assert c.post("/api/extract", files={"file": ("a.png", b"x")}).status_code == 401

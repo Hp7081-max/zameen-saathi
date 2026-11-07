@@ -1,13 +1,24 @@
-"""OCR adapter: demo या Tesseract (hin+eng). Parser अभी हमारे synthetic खतौनी टेम्पलेट के लिए है;
-असली खतौनी के लिए parse_text को field-wise सुधारना होगा (HANDOFF.md देखें)।"""
+"""OCR adapter: demo या Tesseract। फ़ोटो और PDF (कई पन्ने) दोनों।
+
+भाषा का चुनाव: पहले `hin` चलाते हैं (असली खतौनी देवनागरी में होती है)। Tesseract की अपनी औसत confidence
+>= 85 हो तो वही नतीजा; वरना `eng` भी चलाकर जिसकी confidence ज़्यादा हो वह चुनते हैं।
+वजह (नापकर देखा): `hin+eng` एक साथ चलाने पर लैटिन अंक बिगड़ते हैं ("100" -> "00", "1.0" -> "3.0"), और अकेला
+`hin` अंग्रेज़ी पन्ने पर पूरी देवनागरी बकवास निकालता है (देवनागरी-अनुपात से फ़र्क़ नहीं पकड़ा जाता), जबकि
+सही भाषा पर confidence ~94-95 और ग़लत पर 33-61 आई।
+
+Parser अभी हमारे synthetic खतौनी टेम्पलेट के लिए है; असली खतौनी के लिए parse_text को field-wise
+सुधारना होगा (HANDOFF.md / PENDING.md देखें)।"""
+import csv
 import io
 import os
 import re
 import subprocess
+import time
 from fractions import Fraction
 from functools import lru_cache
 from typing import Protocol
 
+from .pdf import is_pdf, pdf_to_png_pages
 from .schemas import Owner, Plot, Record
 
 DEMO_RECORD = Record(district="demo", plots=[
@@ -22,6 +33,11 @@ DEMO_RECORD = Record(district="demo", plots=[
 DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
 ROW = re.compile(r"(\d+(?:/\d+)?)\s+(\d+)\s+(\d+\.\d+|\d+)\s+(.+)")
 OWNER = re.compile(r"([^\d,]+?)\s*(\d*\.\d+|\d+(?:/\d+)?)\s*(?:,|$)")
+
+PAGE_TIMEOUT = 60     # सेकंड, एक पन्ने के लिए
+TOTAL_BUDGET = 150    # सेकंड, पूरी फ़ाइल के लिए
+MAX_SIDE = 3200       # पिक्सेल
+CONF_OK = 85.0        # hin की औसत confidence इतनी हो तो eng चलाने की ज़रूरत नहीं
 
 
 def _share(s: str) -> float:
@@ -53,85 +69,77 @@ class DemoOcr:
 
 
 @lru_cache
-def _lang() -> str:
+def _installed() -> frozenset[str]:
     try:
-        langs = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True).stdout
-    except FileNotFoundError:
-        return "eng"
-    return "hin+eng" if "hin" in langs.split() else "eng"
+        out = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True, timeout=20).stdout
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return frozenset()
+    return frozenset(out.split())
 
 
-MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "8"))
-PDF_DPI, MAX_SIDE = 200, 3500
-
-
-def is_pdf(data: bytes) -> bool:
-    return data[:5] == b"%PDF-"
-
-
-def _ocr_image(img) -> str:
-    from PIL import ImageOps
-    img = ImageOps.autocontrast(img.convert("L"))
-    if img.width < 1600:
-        img = img.resize((img.width * 2, img.height * 2))
-    buf = io.BytesIO()
-    img.save(buf, "PNG")
-    try:
-        out = subprocess.run(["tesseract", "stdin", "stdout", "-l", _lang(), "--psm", "6"],
-                             input=buf.getvalue(), capture_output=True, timeout=40, check=True)
-    except (FileNotFoundError, subprocess.SubprocessError) as e:
-        raise RuntimeError("Tesseract नहीं चल पाया। Docker image इस्तेमाल करें।") from e
-    return out.stdout.decode("utf-8", "ignore")
-
-
-def ocr_text(data: bytes) -> str:
-    from PIL import Image
+def _prep(data: bytes) -> bytes:
+    from PIL import Image, ImageOps
     try:
         img = Image.open(io.BytesIO(data))
         img.load()
-    except Exception as e:  # टूटी फ़ाइल, बहुत बड़ी तस्वीर (decompression bomb) वगैरह
-        raise ValueError("फ़ोटो पढ़ी नहीं जा सकी। PNG या JPG की साफ़ फ़ोटो डालें।") from e
-    return _ocr_image(img)
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:
+        raise ValueError("फ़ाइल पढ़ी नहीं जा सकी। साफ़ PNG/JPG फ़ोटो या PDF डालें।") from e
+    img = ImageOps.autocontrast(img.convert("L"))
+    if img.width < 1600:
+        img = img.resize((img.width * 2, img.height * 2))
+    if max(img.size) > MAX_SIDE:
+        k = MAX_SIDE / max(img.size)
+        img = img.resize((max(1, int(img.width * k)), max(1, int(img.height * k))))
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()
 
 
-def pdf_text(data: bytes) -> str:
-    """हर पन्ने का पाठ। पहले PDF की अपनी text-layer आज़माते हैं; उसमें खसरा-पंक्तियाँ न मिलें
-    (स्कैन वाली PDF, या टूटे फ़ॉन्ट) तो पन्ने को तस्वीर बनाकर OCR करते हैं।
-    pypdfium2 सिर्फ़ pip से आता है, poppler जैसा सिस्टम पैकेज नहीं चाहिए।"""
+def _tesseract(png: bytes, lang: str, timeout: float) -> tuple[str, float]:
+    """(पाठ, औसत confidence 0-100)। TSV से पंक्तियाँ और confidence दोनों एक ही बार में मिलती हैं।"""
     try:
-        import pypdfium2 as pdfium
-    except ImportError as e:
-        raise RuntimeError("PDF पढ़ने वाला पैकेज (pypdfium2) नहीं मिला।") from e
-    try:
-        pdf = pdfium.PdfDocument(data)
-    except Exception as e:
-        raise ValueError("PDF खुल नहीं पाई। (पासवर्ड वाली या खराब फ़ाइल हो सकती है।)") from e
-    try:
-        if len(pdf) > MAX_PDF_PAGES:
-            raise ValueError(f"PDF में {len(pdf)} पन्ने हैं; अभी {MAX_PDF_PAGES} तक चलेंगे। ज़रूरी पन्ने अलग करके डालें।")
-        parts = []
-        for i in range(len(pdf)):
-            page = pdf[i]
-            txt = page.get_textpage().get_text_range()
-            if not parse_text(txt)["plots"]:
-                scale = min(PDF_DPI / 72, MAX_SIDE / max(page.get_size()))
-                txt = _ocr_image(page.render(scale=scale).to_pil())
-            parts.append(txt)
-        return "\n".join(parts)
-    finally:
-        pdf.close()
+        out = subprocess.run(["tesseract", "stdin", "stdout", "-l", lang, "--psm", "6", "tsv"],
+                             input=png, capture_output=True, timeout=timeout, check=True)
+    except (FileNotFoundError, subprocess.SubprocessError) as e:
+        raise RuntimeError("Tesseract नहीं चल पाया। Docker image इस्तेमाल करें।") from e
+    rows = list(csv.reader(out.stdout.decode("utf-8", "ignore").splitlines(), delimiter="\t", quoting=csv.QUOTE_NONE))[1:]
+    words = [r for r in rows if len(r) >= 12 and r[0] == "5" and r[11].strip()]
+    confs = [float(r[10]) for r in words if r[10].lstrip("-").replace(".", "", 1).isdigit() and float(r[10]) >= 0]
+    lines: dict[tuple, list[str]] = {}
+    for r in words:
+        lines.setdefault((r[2], r[3], r[4]), []).append(r[11])
+    return "\n".join(" ".join(w) for w in lines.values()), (sum(confs) / len(confs) if confs else 0.0)
 
 
-def document_text(data: bytes) -> str:
-    return pdf_text(data) if is_pdf(data) else ocr_text(data)
+def ocr_page(data: bytes, timeout: float = PAGE_TIMEOUT) -> tuple[str, float, str]:
+    """(पाठ, confidence, चुनी गई भाषा)।"""
+    png = _prep(data)
+    best: tuple[str, float, str] | None = None
+    for lang in (["hin"] if "hin" in _installed() else []) + ["eng"]:
+        text, conf = _tesseract(png, lang, timeout)
+        if best is None or conf > best[1]:
+            best = (text, conf, lang)
+        if conf >= CONF_OK:
+            break
+    return best  # type: ignore[return-value]
+
+
+def ocr_text(data: bytes, timeout: float = PAGE_TIMEOUT) -> str:
+    return ocr_page(data, timeout)[0]
 
 
 class TesseractOcr:
     def extract(self, data: bytes, filename: str) -> Record:
-        rec = parse_text(document_text(data))
-        if not rec["plots"]:
-            raise ValueError("फ़ोटो/PDF से कोई खसरा नहीं पढ़ पाए। साफ़ और सीधी फ़ोटो डालें।")
-        return Record(**rec)
+        pages = pdf_to_png_pages(data) if is_pdf(data) else [data]
+        start, plots = time.monotonic(), []
+        for page in pages:
+            left = TOTAL_BUDGET - (time.monotonic() - start)
+            if left <= 0:
+                raise RuntimeError("फ़ाइल पढ़ने में बहुत समय लग रहा है। कम पन्नों की PDF डालें।")
+            plots += parse_text(ocr_text(page, min(PAGE_TIMEOUT, left)))["plots"]
+        if not plots:
+            raise ValueError("फ़ाइल से कोई खसरा नहीं पढ़ पाए। साफ़ और सीधी फ़ोटो/PDF डालें।")
+        return Record(district="", plots=plots)
 
 
 def get_engine() -> OcrEngine:

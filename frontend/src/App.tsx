@@ -95,12 +95,12 @@ export default function App() {
         <h1>ज़मीन-साथी</h1>
         {authed && <button className="link" onClick={exit}>बाहर निकलें और डेटा मिटाएँ</button>}
       </header>
-      <p className="lead">अपनी खतौनी की फ़ोटो या PDF (8 पन्ने तक) डालें। हम सरल हिंदी में समझाएँगे और बताएँगे कि कहाँ दोबारा जाँचना चाहिए।</p>
+      <p className="lead">अपनी खतौनी की फ़ोटो या PDF डालें। हम सरल हिंदी में समझाएँगे और बताएँगे कि कहाँ दोबारा जाँचना चाहिए।</p>
 
       {!authed ? <Login onDone={() => setAuthed(true)} /> : (
         <>
           <label className="btn">
-            {busy ? "पढ़ रहे हैं…" : "खतौनी की फ़ोटो या PDF डालें"}
+            {busy ? "पढ़ रहे हैं… (PDF में थोड़ा समय लगता है)" : "खतौनी की फ़ोटो या PDF डालें"}
             <input hidden type="file" accept="image/png,image/jpeg,image/webp,application/pdf" disabled={busy}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) run(async () => { setRes(null); setRec(await extract(f)); }); }} />
           </label>
@@ -145,7 +145,7 @@ export default function App() {
                   <li key={i} className={f.severity}>
                     <strong>खसरा {f.plot} · {SEV[f.severity]}</strong>
                     <span>{f.reason_hi}</span>
-                    <small>{f.source === "rule" ? "नियम से मिला" : "मॉडल का अनुमान"}</small>
+                    <small>{f.source === "rule" ? "नियम से मिला" : "मॉडल से मिला"}</small>
                   </li>
                 ))}
               </ul>

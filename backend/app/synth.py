@@ -1,7 +1,12 @@
 """Synthetic गाँव जनरेटर: नक्शा + खतौनी + लेबल वाली गड़बड़ियाँ + (वैकल्पिक) स्कैन जैसी तस्वीरें।
 कोई असली व्यक्ति/ज़मीन नहीं। Pydantic की ज़रूरत नहीं, सब dict है।
 
-चलाएँ:  python -m app.synth --villages 50 --images 5 --out data/synthetic
+दो तरह की गड़बड़ियाँ:
+  * labels      : नियम-आधारित (KINDS): rules.py इन्हें पक्का पकड़ता है।
+  * soft_labels : संदर्भ-आधारित (SOFT_KINDS): एक-एक प्लॉट देखकर नहीं, पूरे गाँव के पैटर्न से दिखती हैं।
+                  rules.py इन्हें नहीं पकड़ता; ML का असली काम यही है।
+
+चलाएँ:  python -m app.synth --villages 50 --images 5 --lang hi --out data/synthetic
 """
 import argparse
 import json
@@ -11,18 +16,25 @@ from pathlib import Path
 FIRST = ["Ramesh", "Suresh", "Mohan", "Sita", "Geeta", "Ram", "Shyam", "Rajesh", "Sunita", "Kamla",
          "Lakshmi", "Dinesh", "Mahesh", "Savitri", "Hari", "Radha", "Vijay", "Anil", "Pushpa", "Bhola"]
 LAST = ["Devi", "Kumar", "Yadav", "Singh", "Verma", "Maurya", "Pal", "Gupta", "Lal", "Prasad"]
+HI = {"Ramesh": "रमेश", "Suresh": "सुरेश", "Mohan": "मोहन", "Sita": "सीता", "Geeta": "गीता", "Ram": "राम",
+      "Shyam": "श्याम", "Rajesh": "राजेश", "Sunita": "सुनीता", "Kamla": "कमला", "Lakshmi": "लक्ष्मी",
+      "Dinesh": "दिनेश", "Mahesh": "महेश", "Savitri": "सावित्री", "Hari": "हरि", "Radha": "राधा",
+      "Vijay": "विजय", "Anil": "अनिल", "Pushpa": "पुष्पा", "Bhola": "भोला",
+      "Devi": "देवी", "Kumar": "कुमार", "Yadav": "यादव", "Singh": "सिंह", "Verma": "वर्मा",
+      "Maurya": "मौर्य", "Pal": "पाल", "Gupta": "गुप्ता", "Lal": "लाल", "Prasad": "प्रसाद"}
+DEVA_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
 SHARE_SETS = {1: [[1.0]], 2: [[0.5, 0.5], [0.75, 0.25]], 3: [[0.5, 0.25, 0.25]], 4: [[0.25] * 4]}
 KINDS = ["SHARE_SUM", "AREA_MISMATCH", "MANY_TRANSFERS", "DUP_KHASRA", "OVERLAP", "SIMILAR_NAMES"]
-# हल्के संकेत: rules की सीमा से नीचे रहते हैं, इन्हें सिर्फ़ ML अनुमान से पकड़ा जाता है (यह हमारी synthetic मान्यता है)
-SOFT_KINDS = ["AREA_DRIFT", "REPEAT_OWNER"]
+SOFT_KINDS = ["ACCUMULATION", "FRAGMENTED"]
 
 
 def _name(rng: random.Random) -> str:
     return f"{rng.choice(FIRST)} {rng.choice(LAST)}"
 
 
-def make_village(rng: random.Random, vid: int, n_plots: int = 24, anomaly_rate: float = 0.15) -> dict:
-    """एक गाँव = एक Record + labels. नक्शा 6 कॉलम की ग्रिड है, हर प्लॉट अपने सेल में, इसलिए साफ़ रिकॉर्ड में ओवरलैप नहीं।"""
+def make_village(rng: random.Random, vid: int, n_plots: int = 24, anomaly_rate: float = 0.15,
+                 soft_rate: float = 0.15) -> dict:
+    """एक गाँव = एक Record + labels। नक्शा 6 कॉलम की ग्रिड है, हर प्लॉट अपने सेल में, इसलिए साफ़ रिकॉर्ड में ओवरलैप नहीं।"""
     plots, khata, i = [], 0, 0
     while i < n_plots:
         khata += 1
@@ -38,9 +50,9 @@ def make_village(rng: random.Random, vid: int, n_plots: int = 24, anomaly_rate: 
             w, h = rng.uniform(40, 90), rng.uniform(40, 90)
             x, y = c * 100 + rng.uniform(0, 100 - w), r * 100 + rng.uniform(0, 100 - h)
             area = round(w * h / 10000, 3)
-            plots.append({"khasra": str(100 + i), "khata": str(khata), "area_ha": round(area * rng.gauss(1.0, 0.015), 3), "map_area_ha": area,
+            plots.append({"khasra": str(100 + i), "khata": str(khata), "area_ha": area, "map_area_ha": area,
                           "owners": [{"name": n, "share": s} for n, s in zip(names, shares)],
-                          "transfers_last_2y": rng.choice([0, 0, 0, 1, 1, 2]),
+                          "transfers_last_2y": rng.choice([0, 0, 0, 1]),
                           "bbox": [round(x, 1), round(y, 1), round(w, 1), round(h, 1)]})
             i += 1
     labels: dict[str, list[str]] = {}
@@ -51,7 +63,7 @@ def make_village(rng: random.Random, vid: int, n_plots: int = 24, anomaly_rate: 
     for idx, p in enumerate(list(plots)):
         if rng.random() > anomaly_rate:
             continue
-        kind = rng.choice(KINDS + SOFT_KINDS)
+        kind = rng.choice(KINDS)
         k = p["khasra"]
         if kind == "SHARE_SUM" and len(p["owners"]) > 1:
             p["owners"][-1]["share"] = round(p["owners"][-1]["share"] * 0.7, 3)
@@ -72,46 +84,90 @@ def make_village(rng: random.Random, vid: int, n_plots: int = 24, anomaly_rate: 
         elif kind == "SIMILAR_NAMES" and idx > 0:
             other = plots[idx - 1]["owners"][0]["name"].split()[0]
             p["owners"][0]["name"] = other
-        elif kind == "AREA_DRIFT":
-            p["area_ha"] = round(p["area_ha"] * rng.uniform(1.025, 1.045), 3)
-        elif kind == "REPEAT_OWNER":
-            name = p["owners"][0]["name"]
-            far = [q for q in plots if q["khata"] != p["khata"]]
-            for q in rng.sample(far, min(3, len(far))):
-                q["owners"][0]["name"] = name
-                q["transfers_last_2y"] = max(q["transfers_last_2y"], 2)
-                tag(q["khasra"], kind)
-            p["transfers_last_2y"] = max(p["transfers_last_2y"], 2)
         else:
             continue
         tag(k, kind)
-    return {"village": vid, "record": {"district": "synthetic", "plots": plots}, "labels": labels}
+    soft = _inject_soft(rng, plots, labels, soft_rate)
+    return {"village": vid, "record": {"district": "synthetic", "plots": plots}, "labels": labels,
+            "soft_labels": soft}
+
+
+def _inject_soft(rng: random.Random, plots: list[dict], labels: dict, soft_rate: float) -> dict[str, list[str]]:
+    """संदर्भ वाली गड़बड़ियाँ। हर एक अलग-अलग देखने पर नियमों की नज़र में 'साफ़' रहती है (हिस्सा 1, क्षेत्रफल बराबर,
+    transfers < 3), इसलिए सिर्फ़ गाँव के बाकी रिकॉर्ड से तुलना करने पर पकड़ में आती है।"""
+    soft: dict[str, list[str]] = {}
+    by_khata: dict[str, list[dict]] = {}
+    for p in plots:
+        by_khata.setdefault(p["khata"], []).append(p)
+    # सिर्फ़ उन खातों को छेड़ते हैं जिनके किसी प्लॉट पर पहले से कोई नियम-वाली गड़बड़ी नहीं है
+    clean = [k for k, ps in by_khata.items() if int(k) < 900 and not any(p["khasra"] in labels for p in ps)]
+
+    # ACCUMULATION: एक ही आदमी/दलाल का नाम गाँव के कई अलग-अलग खातों में, हर जगह हाल का transfer
+    if rng.random() < soft_rate and len(clean) >= 7:
+        buyer = _name(rng)
+        for k in rng.sample(clean, rng.randint(4, 6)):
+            for p in by_khata[k]:
+                p["owners"][0]["name"] = buyer
+                p["transfers_last_2y"] = rng.choice([1, 2])
+                soft.setdefault(p["khasra"], []).append("ACCUMULATION")
+            clean.remove(k)
+
+    # FRAGMENTED: एक छोटा प्लॉट कई (5-7) हिस्सेदारों में कटा हुआ, हाल के transfers के साथ (प्लॉटिंग-जैसा पैटर्न)
+    for k in list(clean):
+        ps = by_khata[k]
+        if len(ps) != 1 or rng.random() > soft_rate / 7:
+            continue
+        p, n = ps[0], rng.randint(5, 7)
+        w, h = rng.uniform(15, 28), rng.uniform(15, 28)
+        p["bbox"][2], p["bbox"][3] = round(w, 1), round(h, 1)
+        p["area_ha"] = p["map_area_ha"] = round(w * h / 10000, 3)
+        p["owners"] = [{"name": _name(rng), "share": round(1 / n, 4)} for _ in range(n)]
+        p["transfers_last_2y"] = rng.choice([1, 2])
+        soft.setdefault(p["khasra"], []).append("FRAGMENTED")
+    return soft
 
 
 # ---------- तस्वीरें ----------
-_FONTS = ["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
-          "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf",
-          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+_DEVA_FONTS = ["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+               "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf",
+               "/usr/share/fonts/truetype/freefont/FreeSans.ttf"]
+_LATIN_FONTS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/freefont/FreeSans.ttf"]
 
 
-def _font(size: int):
+def _font(size: int, deva: bool):
+    """(font, मिला?)। deva=True पर देवनागरी वाला फ़ॉन्ट न मिले तो मिला=False।"""
     from PIL import ImageFont
-    for f in _FONTS:
+    for f in (_DEVA_FONTS if deva else _LATIN_FONTS):
         if Path(f).exists():
-            return ImageFont.truetype(f, size), "Devanagari" in f or "Lohit" in f
+            return ImageFont.truetype(f, size), True
     return ImageFont.load_default(), False
 
 
-def render_page(plots: list[dict], title: str = "Khatauni"):
+def has_devanagari_font() -> bool:
+    return _font(20, True)[1]
+
+
+def _hi(text: str) -> str:
+    return " ".join(HI.get(w, w) for w in text.split())
+
+
+def render_page(plots: list[dict], title: str = "Khatauni", lang: str = "en"):
+    """lang='en': अंग्रेज़ी नाम और लैटिन अंक। lang='hi': देवनागरी नाम, अंक और शीर्षक (देवनागरी फ़ॉन्ट चाहिए)।"""
     from PIL import Image, ImageDraw
-    font, deva = _font(30)
-    img = Image.new("L", (1700, 90 + 52 * len(plots)), 245)
+    hi = lang == "hi"
+    font, ok = _font(30, hi)
+    if hi and not ok:
+        raise RuntimeError("देवनागरी फ़ॉन्ट नहीं मिला (fonts-noto-core या fonts-freefont-ttf install करें)।")
+    img = Image.new("L", (1900, 90 + 52 * len(plots)), 245)
     d = ImageDraw.Draw(img)
-    d.text((40, 20), "खतौनी" if deva else title, font=font, fill=20)
-    d.text((40, 56), "Khasra   Khata   Area(ha)   Owners and share" if not deva else "खसरा  खाता  क्षेत्रफल  हिस्सेदार", font=font, fill=60)
+    d.text((40, 20), "खतौनी" if hi else title, font=font, fill=20)
+    d.text((40, 56), "खसरा  खाता  क्षेत्रफल  हिस्सेदार" if hi else "Khasra   Khata   Area(ha)   Owners and share",
+           font=font, fill=60)
     for n, p in enumerate(plots):
-        row = f"{p['khasra']}  {p['khata']}  {p['area_ha']:.3f}  " + ", ".join(f"{o['name']} {o['share']}" for o in p["owners"])
-        d.text((40, 100 + n * 52), row, font=font, fill=15)
+        owners = ", ".join(f"{_hi(o['name']) if hi else o['name']} {o['share']}" for o in p["owners"])
+        row = f"{p['khasra']}  {p['khata']}  {p['area_ha']:.3f}  {owners}"
+        d.text((40, 100 + n * 52), row.translate(DEVA_DIGITS) if hi else row, font=font, fill=15)
     return img
 
 
@@ -134,9 +190,12 @@ def main():
     ap.add_argument("--villages", type=int, default=50)
     ap.add_argument("--images", type=int, default=5, help="कितने गाँवों की तस्वीरें बनानी हैं")
     ap.add_argument("--no-images", action="store_true")
+    ap.add_argument("--lang", choices=["auto", "hi", "en"], default="auto",
+                    help="तस्वीर की भाषा; auto = देवनागरी फ़ॉन्ट मिले तो hi")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--out", default="data/synthetic")
     a = ap.parse_args()
+    lang = ("hi" if has_devanagari_font() else "en") if a.lang == "auto" else a.lang
     rng, out = random.Random(a.seed), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "villages.jsonl", "w", encoding="utf-8") as f:
@@ -146,8 +205,8 @@ def main():
             if not a.no_images and v < a.images:
                 plots = village["record"]["plots"]
                 for pg in range(0, len(plots), 12):
-                    scan_effect(render_page(plots[pg:pg + 12]), rng).save(out / f"village{v}_p{pg // 12}.png")
-    print(f"{a.villages} गाँव लिखे -> {out}")
+                    scan_effect(render_page(plots[pg:pg + 12], lang=lang), rng).save(out / f"village{v}_p{pg // 12}.png")
+    print(f"{a.villages} गाँव लिखे -> {out}" + ("" if a.no_images else f" (तस्वीरें: {lang})"))
 
 
 if __name__ == "__main__":

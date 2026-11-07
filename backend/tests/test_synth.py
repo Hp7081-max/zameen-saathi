@@ -6,7 +6,7 @@ import pytest
 from app.ocr import parse_text
 from app.rules import run_rules
 from app.schemas import Record
-from app.synth import SOFT_KINDS, make_village, render_page, scan_effect
+from app.synth import KINDS, make_village, render_page, scan_effect
 
 
 def _villages(n=60):
@@ -21,8 +21,6 @@ def test_rules_catch_injected_anomalies():
         flags = {(f.plot, f.code) for f in run_rules(Record(**v["record"]))}
         for khasra, kinds in v["labels"].items():
             for k in kinds:
-                if k in SOFT_KINDS:  # इन्हें rules नहीं, ML देखता है
-                    continue
                 tot += 1
                 hit += (khasra, k) in flags or (k == "SIMILAR_NAMES" and any(c == k for _, c in flags))
     assert tot > 20 and hit / tot >= 0.95

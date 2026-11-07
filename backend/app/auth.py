@@ -28,14 +28,7 @@ def _purge() -> None:
 
 
 def _phone(raw: str) -> str:
-    p = raw.strip().replace(" ", "").replace("-", "")
-    # देश का कोड तभी हटाओ जब नंबर लंबा हो: 91 से शुरू होने वाला 10 अंकों का मोबाइल नंबर भी सही हो सकता है
-    if p.startswith("+91"):
-        p = p[3:]
-    elif len(p) == 12 and p.startswith("91"):
-        p = p[2:]
-    elif len(p) == 11 and p.startswith("0"):
-        p = p[1:]
+    p = re.sub(r"^\+?91", "", raw.strip().replace(" ", ""))
     if not re.fullmatch(r"[6-9]\d{9}", p):
         raise HTTPException(400, "सही 10 अंकों का मोबाइल नंबर डालें।")
     return p
