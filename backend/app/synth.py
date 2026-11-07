@@ -40,7 +40,7 @@ def make_village(rng: random.Random, vid: int, n_plots: int = 24, anomaly_rate: 
         khata += 1
         owners_n = rng.choice([1, 1, 2, 2, 3, 4])
         shares = rng.choice(SHARE_SETS[owners_n])
-        names = list({_name(rng) for _ in range(owners_n)})
+        names = list(dict.fromkeys(_name(rng) for _ in range(owners_n)))  # क्रम तय रहे (set का क्रम हर बार बदलता है)
         while len(names) < owners_n:
             names.append(_name(rng))
         for _ in range(rng.choice([1, 1, 2, 3])):
@@ -55,6 +55,16 @@ def make_village(rng: random.Random, vid: int, n_plots: int = 24, anomaly_rate: 
                           "transfers_last_2y": rng.choice([0, 0, 0, 1]),
                           "bbox": [round(x, 1), round(y, 1), round(w, 1), round(h, 1)]})
             i += 1
+    # निर्दोष दोहराव: असली गाँवों में रिश्तेदार कई खातों में आते हैं। एक नाम 2-3 खातों में, कोई गड़बड़ी नहीं।
+    # इससे "एक नाम कई खातों में" अपने आप में सबूत नहीं रहता और ML को सचमुच फ़र्क़ सीखना पड़ता है।
+    if rng.random() < 0.4:
+        by_k: dict[str, list[dict]] = {}
+        for p in plots:
+            by_k.setdefault(p["khata"], []).append(p)
+        family = _name(rng)
+        for k in rng.sample(list(by_k), min(rng.randint(2, 3), len(by_k))):
+            for p in by_k[k]:
+                p["owners"][0]["name"] = family
     labels: dict[str, list[str]] = {}
 
     def tag(khasra: str, kind: str):
@@ -103,9 +113,12 @@ def _inject_soft(rng: random.Random, plots: list[dict], labels: dict, soft_rate:
     clean = [k for k, ps in by_khata.items() if int(k) < 900 and not any(p["khasra"] in labels for p in ps)]
 
     # ACCUMULATION: एक ही आदमी/दलाल का नाम गाँव के कई अलग-अलग खातों में, हर जगह हाल का transfer
-    if rng.random() < soft_rate and len(clean) >= 7:
+    if rng.random() < soft_rate and len(clean) >= 8:
+        taken = {o["name"] for p in plots for o in p["owners"]}
         buyer = _name(rng)
-        for k in rng.sample(clean, rng.randint(4, 6)):
+        while buyer in taken:  # दलाल का नाम गाँव में पहले से न हो, वरना कोई "साफ़" प्लॉट भी यही पैटर्न दिखा देगा (लेबल की चूक)
+            buyer = _name(rng)
+        for k in rng.sample(clean, rng.randint(3, 6)):
             for p in by_khata[k]:
                 p["owners"][0]["name"] = buyer
                 p["transfers_last_2y"] = rng.choice([1, 2])
@@ -115,7 +128,7 @@ def _inject_soft(rng: random.Random, plots: list[dict], labels: dict, soft_rate:
     # FRAGMENTED: एक छोटा प्लॉट कई (5-7) हिस्सेदारों में कटा हुआ, हाल के transfers के साथ (प्लॉटिंग-जैसा पैटर्न)
     for k in list(clean):
         ps = by_khata[k]
-        if len(ps) != 1 or rng.random() > soft_rate / 7:
+        if len(ps) != 1 or rng.random() > soft_rate / 3:
             continue
         p, n = ps[0], rng.randint(5, 7)
         w, h = rng.uniform(15, 28), rng.uniform(15, 28)
