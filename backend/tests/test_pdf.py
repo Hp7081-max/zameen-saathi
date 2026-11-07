@@ -1,61 +1,79 @@
+"""PDF -> पन्ने -> OCR। असली PDF (Pillow से बनी), असली pypdfium2 और (जहाँ उपलब्ध) असली Tesseract।"""
 import io
 import random
 import shutil
 
 import pytest
+from PIL import Image
 
-from app.ocr import MAX_PDF_PAGES, document_text, is_pdf, parse_text, pdf_text
-from app.synth import make_village, render_page, scan_effect
+from app import pdf
+from app.ocr import TesseractOcr, _installed
+from app.synth import has_devanagari_font, make_village, render_page, scan_effect
+
+needs_tesseract = pytest.mark.skipif(not shutil.which("tesseract"), reason="tesseract नहीं है")
 
 
-def _text_pdf(lines):
-    """हाथ से बनी छोटी PDF जिसमें text-layer है (OCR की ज़रूरत नहीं)।"""
-    stream = "BT /F1 12 Tf 14 TL 50 700 Td " + " ".join(f"({l}) Tj T*" for l in lines) + " ET"
-    objs = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-            f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream",
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
-    out, offs = b"%PDF-1.4\n", []
-    for i, o in enumerate(objs, 1):
-        offs.append(len(out))
-        out += f"{i} 0 obj\n{o}\nendobj\n".encode()
-    x = len(out)
-    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
-    out += b"".join(f"{o:010d} 00000 n \n".encode() for o in offs)
-    return out + f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{x}\n%%EOF".encode()
+def _pdf_bytes(pages: list[Image.Image]) -> bytes:
+    buf = io.BytesIO()
+    rgb = [p.convert("RGB") for p in pages]
+    rgb[0].save(buf, "PDF", save_all=True, append_images=rgb[1:], resolution=150)
+    return buf.getvalue()
+
+
+def _scan_pages(lang: str, seed: int = 11):
+    rng = random.Random(seed)
+    plots = make_village(rng, 0, anomaly_rate=0.0, soft_rate=0.0)["record"]["plots"]
+    chunks = [plots[:12], plots[12:24]]
+    return chunks, [scan_effect(render_page(c, lang=lang), rng) for c in chunks]
+
+
+def _matched(rec, chunks) -> float:
+    want = {(p["khasra"], p["khata"], p["area_ha"]) for c in chunks for p in c}
+    got = {(p.khasra, p.khata, p.area_ha) for p in rec.plots}
+    return len(want & got) / len(want)
 
 
 def test_is_pdf():
-    assert is_pdf(b"%PDF-1.7 ...") and not is_pdf(b"\x89PNG")
+    assert pdf.is_pdf(b"%PDF-1.7\n...") and not pdf.is_pdf(b"\x89PNG....")
 
 
-def test_text_layer_pdf_needs_no_ocr():
-    plots = parse_text(pdf_text(_text_pdf(["101 12 0.52 Ramesh 0.5, Suresh 0.5", "102 12 1.20 Sita 1"])))["plots"]
-    assert [p["khasra"] for p in plots] == ["101", "102"]
-    assert plots[0]["owners"][1]["share"] == 0.5
-
-
-def test_broken_pdf_is_a_clean_error():
-    with pytest.raises(ValueError):
-        pdf_text(b"%PDF-1.4 yeh pdf nahi hai")
+def test_pages_are_rendered():
+    _, imgs = _scan_pages("en")
+    out = pdf.pdf_to_png_pages(_pdf_bytes(imgs))
+    assert len(out) == 2
+    first = Image.open(io.BytesIO(out[0]))
+    assert first.mode == "L" and first.width >= 1600 and max(first.size) <= pdf.MAX_SIDE
 
 
 def test_too_many_pages_rejected():
-    from PIL import Image
-    pages = [Image.new("L", (50, 50), 255) for _ in range(MAX_PDF_PAGES + 1)]
-    buf = io.BytesIO()
-    pages[0].save(buf, "PDF", save_all=True, append_images=pages[1:])
-    with pytest.raises(ValueError):
-        pdf_text(buf.getvalue())
+    page = Image.new("L", (200, 200), 255)
+    with pytest.raises(pdf.PdfError, match="पन्ने"):
+        pdf.pdf_to_png_pages(_pdf_bytes([page] * (pdf.MAX_PAGES + 1)))
 
 
-@pytest.mark.skipif(not shutil.which("tesseract"), reason="tesseract नहीं है")
-def test_scanned_two_page_pdf_via_ocr():
-    rng = random.Random(11)
-    plots = make_village(rng, 0, anomaly_rate=0.0)["record"]["plots"][:10]
-    imgs = [scan_effect(render_page(plots[:5]), rng).convert("RGB"), scan_effect(render_page(plots[5:]), rng).convert("RGB")]
-    buf = io.BytesIO()
-    imgs[0].save(buf, "PDF", save_all=True, append_images=imgs[1:], resolution=150)
-    got = {(p["khasra"], p["khata"], p["area_ha"]) for p in parse_text(document_text(buf.getvalue()))["plots"]}
-    want = {(p["khasra"], p["khata"], p["area_ha"]) for p in plots}
-    assert len(got & want) / len(want) >= 0.8
+def test_page_limit_comes_from_env(monkeypatch):
+    for raw, want in [("3", 3), ("0", 1), ("abc", 8), ("", 8)]:
+        monkeypatch.setenv("MAX_PDF_PAGES", raw)
+        assert pdf.max_pages_from_env() == want
+    monkeypatch.delenv("MAX_PDF_PAGES")
+    assert pdf.max_pages_from_env() == 8
+
+
+def test_broken_pdf_gives_hindi_error():
+    with pytest.raises(pdf.PdfError, match="PDF खुल नहीं पाई"):
+        pdf.pdf_to_png_pages(b"%PDF-1.4\nthis is not really a pdf")
+
+
+@needs_tesseract
+def test_english_pdf_two_pages():
+    chunks, imgs = _scan_pages("en")
+    rec = TesseractOcr().extract(_pdf_bytes(imgs), "k.pdf")
+    assert _matched(rec, chunks) >= 0.85
+
+
+@needs_tesseract
+@pytest.mark.skipif("hin" not in _installed() or not has_devanagari_font(), reason="hin मॉडल / देवनागरी फ़ॉन्ट नहीं है")
+def test_hindi_pdf_two_pages():
+    chunks, imgs = _scan_pages("hi")
+    rec = TesseractOcr().extract(_pdf_bytes(imgs), "k.pdf")
+    assert _matched(rec, chunks) >= 0.8

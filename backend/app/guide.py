@@ -37,10 +37,11 @@ GUIDE = {
                       ["An ID that proves your name", "Inheritance or older papers showing the full name"],
                       "क्या ये मिलते-जुलते नाम एक ही व्यक्ति के हैं? वर्तनी सुधारनी हो तो क्या करना होगा?",
                       "Are these similar names the same person? What is needed to correct a spelling?"),
-    "SOFT_SIGNAL": ("लेखपाल", "The lekhpal", [], [],
+    "ANOMALY": ("लेखपाल", "The lekhpal", [], [],
                     "इस खसरे को ताज़ा खतौनी और नक्शे से मिलाकर बताइए कि सब ठीक दर्ज है या नहीं।",
                     "Please check this plot against the latest record and map and confirm it is correctly entered."),
 }
+GUIDE["SOFT_SIGNAL"] = GUIDE["ANOMALY"]  # पुराना नाम, ताकि पुराने flags भी चेकलिस्ट पाएँ
 
 
 def checklist(flags: list[Flag]) -> list[ChecklistItem]:

@@ -1,15 +1,10 @@
-import asyncio
 import os
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 
-from . import auth, qa
-from .anomaly import run_anomaly
-from .explain import explain, explain_en
-from .guide import checklist
-from .ocr import get_engine, is_pdf
-from .rules import run_rules
+from . import auth, qa, service
 from .schemas import (AnalyzeResponse, AskRequest, AskResponse, OtpRequest, OtpResponse,
                       Record, SessionResponse, VerifyRequest)
 
@@ -20,8 +15,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-MAX_BYTES = 10 * 1024 * 1024
-ALLOWED_EXT = (".png", ".jpg", ".jpeg", ".webp", ".pdf")
 authed = [Depends(auth.require_session)]
 auth.check_config()  # कमज़ोर सेटिंग के साथ SMS मोड में सर्वर शुरू ही न हो
 
@@ -49,32 +42,17 @@ def end_session(token: str = Depends(auth.require_session)):
 
 @app.post("/api/extract", response_model=Record, dependencies=[Depends(auth.limit_extract)])
 async def extract(file: UploadFile):
-    name = (file.filename or "").lower()
-    if not name.endswith(ALLOWED_EXT):
-        raise HTTPException(415, "सिर्फ़ फ़ोटो (PNG/JPG) या PDF चलेगी।")
-    data = await file.read()  # memory में ही process होता है
-    if len(data) > MAX_BYTES:
-        raise HTTPException(413, "फ़ाइल 10 MB से छोटी रखें।")
-    if name.endswith(".pdf") and not is_pdf(data):
-        raise HTTPException(415, "यह असली PDF नहीं लगती।")
-    try:  # OCR भारी काम है: अलग thread में, ताकि बाकी लोगों की requests न रुकें
-        return await asyncio.to_thread(get_engine().extract, data, name)
-    except ValueError as e:
-        raise HTTPException(422, str(e))
-    except RuntimeError as e:
-        raise HTTPException(503, str(e))
+    data = await file.read(service.MAX_BYTES + 1)  # memory में ही; सीमा से एक बाइट ज़्यादा पढ़ते हैं ताकि बड़ी फ़ाइल पकड़ी जाए
+    try:
+        # OCR धीमा और CPU-भारी है (PDF में कई पन्ने): थ्रेड में चलाते हैं ताकि बाकी अनुरोध न अटकें
+        return await run_in_threadpool(service.extract_document, data, file.filename or "")
+    except service.DocError as e:
+        raise HTTPException(e.status, e.msg)
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse, dependencies=authed)
 def analyze(rec: Record):
-    order = ["high", "medium", "low"]
-    rule_flags = run_rules(rec)
-    ruled = {f.plot for f in rule_flags}  # ML सिर्फ़ उन प्लॉट को देखता है जिन्हें rules ने नहीं पकड़ा
-    flags = sorted(rule_flags + run_anomaly(rec, skip=ruled), key=lambda f: order.index(f.severity))
-    summary = f"{len(rec.plots)} प्लॉट मिले। {len(flags)} जगह दोबारा जाँचने की ज़रूरत है।"
-    summary_en = f"{len(rec.plots)} plots found. {len(flags)} places need a second look."
-    return AnalyzeResponse(summary_hi=summary, summary_en=summary_en, plain_hi=explain(rec), plain_en=explain_en(rec),
-                           flags=flags, checklist=checklist(flags))
+    return service.analyze_record(rec)
 
 
 @app.post("/api/ask", response_model=AskResponse, dependencies=authed)
