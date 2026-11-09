@@ -2,10 +2,20 @@
 <html lang="hi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ज़मीन-साथी</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;600;700&display=swap" rel="stylesheet" />
+    <meta name="description" content="खतौनी की फ़ोटो या PDF डालिए और उसे सरल हिंदी में समझिए। Understand your khatauni in plain words." />
+    <meta name="theme-color" content="#1b2a57" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <!-- फ़ॉन्ट अपने ही सर्वर से (public/fonts): Google Fonts नहीं, इसलिए ऑफ़लाइन और कम डेटा में भी वही दिखावट -->
+    <link rel="preload" href="/fonts/Poppins-Regular.woff" as="font" type="font/woff" crossorigin />
+    <link rel="preload" href="/fonts/Poppins-Bold.woff" as="font" type="font/woff" crossorigin />
   </head>
-  <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+  <body>
+    <div id="root"></div>
+    <noscript>इस ऐप को चलाने के लिए JavaScript चालू करें। / Please enable JavaScript to use this app.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

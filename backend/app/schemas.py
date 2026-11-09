@@ -57,12 +57,22 @@ class AnalyzeResponse(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
+    lang: str = "auto"  # "hi" | "en" | "auto" (सवाल की लिपि से पहचान)
 
 
 class AskResponse(BaseModel):
     answer: str
     sources: list[str]
+    title: str = ""  # जिस शब्दावली-प्रविष्टि से जवाब मिला
+    lang: str = "hi"  # जवाब किस भाषा के corpus से आया
+    related: list[str] = Field(default_factory=list)  # मिलते-जुलते सवाल, एक टैप में पूछने के लिए
     disclaimer: str = DISCLAIMER
+    disclaimer_en: str = DISCLAIMER_EN
+
+
+class TopicsResponse(BaseModel):
+    lang: str
+    topics: list[str]
 
 
 class OtpRequest(BaseModel):

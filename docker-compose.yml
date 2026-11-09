@@ -7,7 +7,8 @@ services:
       AUTH_REQUIRED: "1"
       AUTH_SALT: badal-do
       CORS_ORIGINS: http://localhost:8080
-    ports: ["8000:8000"]
+      TRUSTED_PROXY_HOPS: "1"   # backend के आगे सिर्फ़ frontend का nginx है; IP-सीमा असली क्लाइंट पर चले
+    expose: ["8000"]            # बाहर नहीं खोला: सीधा पहुँच हुई तो X-Forwarded-For नकली लग सकता है
   frontend:
     build: ./frontend
     ports: ["8080:80"]

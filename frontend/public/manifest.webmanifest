@@ -1,0 +1,16 @@
+{
+  "name": "ज़मीन-साथी",
+  "short_name": "ज़मीन-साथी",
+  "description": "खतौनी को सरल हिंदी में समझें। Understand your khatauni in plain words.",
+  "lang": "hi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffefb",
+  "theme_color": "#1b2a57",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

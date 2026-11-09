@@ -1,9 +1,12 @@
 """सहमति + OTP + session। फ़ोन और टोकन सिर्फ़ hash के रूप में रखे जाते हैं।
 Store: डिफ़ॉल्ट memory (एक instance); REDIS_URL हो तो Redis (कई instance)।
-SMS: OTP_MODE=demo (OTP जवाब में दिखता है, सिर्फ़ डेमो के लिए) या OTP_MODE=sms + SMS_PROVIDER=msg91|twilio।"""
+SMS: OTP_MODE=demo (OTP जवाब में दिखता है, सिर्फ़ डेमो के लिए) या OTP_MODE=sms + SMS_PROVIDER=msg91|twilio।
+सीमाएँ: हर फ़ोन/session पर (नीचे request_otp, verify_otp, limit_extract) और हर IP पर (`ip_limit`)।
+IP गिनती सिर्फ़ hash के रूप में रखी जाती है। सर्वर proxy के पीछे हो (Render, nginx) तो TRUSTED_PROXY_HOPS रखो।"""
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -13,10 +16,18 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
+
+from .messages import Msg
 
 OTP_TTL, SESSION_TTL, MAX_TRIES = 300, 1800, 5
 DEFAULT_SALT = "dev-salt"
+SMS_FAILED = Msg("SMS भेज नहीं पाए। थोड़ी देर बाद कोशिश करें।", "Could not send the SMS. Try again shortly.")
+
+
+def _err(status: int, msg: Msg, retry: int | None = None) -> HTTPException:
+    """HTTP त्रुटि; detail = {"hi", "en"} ताकि frontend अपनी चुनी भाषा दिखा सके।"""
+    return HTTPException(status, msg.detail(), headers={"Retry-After": str(retry)} if retry else None)
 
 
 class MemoryStore:
@@ -85,11 +96,11 @@ def check_config() -> None:
     if mode == "demo":
         return
     if mode != "sms":
-        raise RuntimeError("OTP_MODE 'demo' या 'sms' होना चाहिए।")
+        raise RuntimeError("OTP_MODE 'demo' या 'sms' होना चाहिए। / OTP_MODE must be 'demo' or 'sms'.")
     if os.getenv("AUTH_SALT", DEFAULT_SALT) == DEFAULT_SALT:
-        raise RuntimeError("OTP_MODE=sms में AUTH_SALT बदलना ज़रूरी है।")
+        raise RuntimeError("OTP_MODE=sms में AUTH_SALT बदलना ज़रूरी है। / Change AUTH_SALT when OTP_MODE=sms.")
     if os.getenv("SMS_PROVIDER", "") not in ("msg91", "twilio"):
-        raise RuntimeError("SMS_PROVIDER 'msg91' या 'twilio' रखें।")
+        raise RuntimeError("SMS_PROVIDER 'msg91' या 'twilio' रखें। / Set SMS_PROVIDER to 'msg91' or 'twilio'.")
 
 
 def _phone(raw: str) -> str:
@@ -102,7 +113,7 @@ def _phone(raw: str) -> str:
     elif len(p) == 11 and p.startswith("0"):
         p = p[1:]
     if not re.fullmatch(r"[6-9]\d{9}", p):
-        raise HTTPException(400, "सही 10 अंकों का मोबाइल नंबर डालें।")
+        raise _err(400, Msg("सही 10 अंकों का मोबाइल नंबर डालें।", "Enter a valid 10-digit mobile number."))
     return p
 
 
@@ -140,22 +151,22 @@ def send_sms(phone: str, otp: str) -> None:
                                       {"Authorization": "Basic " + basic,
                                        "Content-Type": "application/x-www-form-urlencoded"})
         else:
-            raise HTTPException(501, "SMS provider जुड़ा नहीं है।")
+            raise _err(501, Msg("SMS provider जुड़ा नहीं है।", "No SMS provider is connected."))
     except KeyError as e:
-        raise HTTPException(503, f"SMS की सेटिंग अधूरी है: {e.args[0]}")
+        raise _err(503, Msg(f"SMS की सेटिंग अधूरी है: {e.args[0]}", f"SMS settings are incomplete: {e.args[0]}"))
     except (urllib.error.URLError, TimeoutError, OSError):
-        raise HTTPException(502, "SMS भेज नहीं पाए। थोड़ी देर बाद कोशिश करें।")
+        raise _err(502, SMS_FAILED)
     if status >= 300:
-        raise HTTPException(502, "SMS भेज नहीं पाए। थोड़ी देर बाद कोशिश करें।")
+        raise _err(502, SMS_FAILED)
 
 
 def request_otp(phone: str, consent: bool) -> dict:
     if not consent:
-        raise HTTPException(400, "आगे बढ़ने के लिए सहमति ज़रूरी है।")
+        raise _err(400, Msg("आगे बढ़ने के लिए सहमति ज़रूरी है।", "Consent is needed to continue."))
     clean = _phone(phone)
     ph = _h(clean)
     if store().incr("rq:" + ph, 600) > 3:
-        raise HTTPException(429, "बहुत बार कोशिश हुई। 10 मिनट बाद फिर करें।")
+        raise _err(429, Msg("बहुत बार कोशिश हुई। 10 मिनट बाद फिर करें।", "Too many attempts. Try again in 10 minutes."), retry=600)
     otp = f"{secrets.randbelow(10**6):06d}"
     store().set("otp:" + ph, json.dumps({"h": _h(otp), "t": 0}), OTP_TTL)
     if os.getenv("OTP_MODE", "demo") == "demo":
@@ -172,15 +183,15 @@ def verify_otp(phone: str, otp: str) -> dict:
     ph = _h(_phone(phone))
     raw = store().get("otp:" + ph)
     if not raw:
-        raise HTTPException(400, "OTP की समय सीमा खत्म हो गई। दोबारा भेजें।")
+        raise _err(400, Msg("OTP की समय सीमा खत्म हो गई। दोबारा भेजें।", "The OTP has expired. Send a new one."))
     e = json.loads(raw)
     e["t"] += 1
     if e["t"] > MAX_TRIES:
         store().delete("otp:" + ph)
-        raise HTTPException(429, "बहुत गलत OTP। नया OTP मँगवाएँ।")
+        raise _err(429, Msg("बहुत गलत OTP। नया OTP मँगवाएँ।", "Too many wrong OTPs. Request a new one."))
     if not hmac.compare_digest(e["h"], _h(otp.strip())):
         store().set("otp:" + ph, json.dumps(e), OTP_TTL)
-        raise HTTPException(400, "OTP गलत है।")
+        raise _err(400, Msg("OTP गलत है।", "The OTP is wrong."))
     store().delete("otp:" + ph)
     token = secrets.token_urlsafe(32)
     store().set("s:" + _h(token), "1", SESSION_TTL)
@@ -191,16 +202,62 @@ def require_session(x_session: str | None = Header(default=None)) -> str:
     if os.getenv("AUTH_REQUIRED", "1") == "0":
         return "anon"
     if not x_session or store().get("s:" + _h(x_session)) is None:
-        raise HTTPException(401, "लॉगिन ज़रूरी है।")
+        raise _err(401, Msg("लॉगिन ज़रूरी है।", "Please sign in."))
     return x_session
 
 
 def limit_extract(token: str = Depends(require_session)) -> str:
     """फ़ोटो/PDF पढ़ना भारी काम है: हर session पर 10 मिनट में सीमित बार।"""
     if store().incr("ex:" + _h(token), 600) > int(os.getenv("MAX_EXTRACT_PER_10MIN", "20")):
-        raise HTTPException(429, "बहुत ज़्यादा फ़ाइलें हो गईं। 10 मिनट बाद फिर कोशिश करें।")
+        raise _err(429, Msg("बहुत ज़्यादा फ़ाइलें हो गईं। 10 मिनट बाद फिर कोशिश करें।",
+                            "Too many files. Try again in 10 minutes."), retry=600)
     return token
 
 
 def logout(token: str) -> None:
     store().delete("s:" + _h(token))
+
+
+# ---------- IP के हिसाब से सीमा ----------
+def client_ip(request: Request) -> str:
+    """असली client का IP। X-Forwarded-For पर तभी भरोसा जब TRUSTED_PROXY_HOPS > 0 (यानी सर्वर अपने proxy के पीछे है):
+    हर भरोसेमंद proxy अपने सामने वाले का IP सूची के अंत में जोड़ता है, इसलिए असली client अंत से `hops`-वाँ है;
+    उससे बाईं तरफ़ का सब कुछ client का लिखा हो सकता है (नकली), उसे नहीं मानते।
+    IPv6 में पूरा /64 एक गिना जाता है, वरना हर नए पते से सीमा लाँघी जा सकती है।"""
+    peer = request.client.host if request.client else "unknown"
+    try:
+        hops = max(0, int(os.getenv("TRUSTED_PROXY_HOPS", "0")))
+    except ValueError:
+        hops = 0
+    ip = peer
+    if hops:
+        parts = [x.strip() for x in request.headers.get("x-forwarded-for", "").split(",") if x.strip()]
+        if len(parts) >= hops:
+            ip = parts[-hops]
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return peer  # गलत/नकली मान: असली TCP पते पर लौटो
+    if addr.version == 6:
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False).network_address)
+    return str(addr)
+
+
+def ip_limit(bucket: str, env: str, default: int, window: int = 600):
+    """FastAPI dependency बनाता है: हर IP पर `window` सेकंड में `default` (या env) से ज़्यादा अनुरोध नहीं।
+    सीमा उदार रखी है: एक CSC/साइबर कैफ़े के कई लोग एक ही IP से आ सकते हैं।"""
+    def dep(request: Request) -> None:
+        try:
+            cap = int(os.getenv(env, str(default)))
+        except ValueError:
+            cap = default
+        if cap > 0 and store().incr(f"ip:{bucket}:{_h(client_ip(request))}", window) > cap:
+            raise _err(429, Msg("इस नेटवर्क से बहुत ज़्यादा अनुरोध आए। थोड़ी देर बाद फिर कोशिश करें।",
+                                "Too many requests from this network. Try again shortly."), retry=window)
+    dep.__name__ = f"ip_limit_{bucket}"
+    return dep
+
+
+limit_otp_ip = ip_limit("otp", "MAX_OTP_PER_IP_10MIN", 30)
+limit_verify_ip = ip_limit("verify", "MAX_VERIFY_PER_IP_10MIN", 60)
+limit_extract_ip = ip_limit("extract", "MAX_EXTRACT_PER_IP_10MIN", 100)

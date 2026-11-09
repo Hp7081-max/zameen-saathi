@@ -18,6 +18,7 @@ from fractions import Fraction
 from functools import lru_cache
 from typing import Protocol
 
+from .messages import Msg
 from .pdf import is_pdf, pdf_to_png_pages
 from .schemas import Owner, Plot, Record
 
@@ -83,7 +84,8 @@ def _prep(data: bytes) -> bytes:
         img = Image.open(io.BytesIO(data))
         img.load()
     except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:
-        raise ValueError("फ़ाइल पढ़ी नहीं जा सकी। साफ़ PNG/JPG फ़ोटो या PDF डालें।") from e
+        raise ValueError(Msg("फ़ाइल पढ़ी नहीं जा सकी। साफ़ PNG/JPG फ़ोटो या PDF डालें।",
+                             "The file could not be read. Upload a clear PNG/JPG photo or a PDF.")) from e
     img = ImageOps.autocontrast(img.convert("L"))
     if img.width < 1600:
         img = img.resize((img.width * 2, img.height * 2))
@@ -101,7 +103,8 @@ def _tesseract(png: bytes, lang: str, timeout: float) -> tuple[str, float]:
         out = subprocess.run(["tesseract", "stdin", "stdout", "-l", lang, "--psm", "6", "tsv"],
                              input=png, capture_output=True, timeout=timeout, check=True)
     except (FileNotFoundError, subprocess.SubprocessError) as e:
-        raise RuntimeError("Tesseract नहीं चल पाया। Docker image इस्तेमाल करें।") from e
+        raise RuntimeError(Msg("Tesseract नहीं चल पाया। Docker image इस्तेमाल करें।",
+                               "Tesseract could not run. Use the Docker image.")) from e
     rows = list(csv.reader(out.stdout.decode("utf-8", "ignore").splitlines(), delimiter="\t", quoting=csv.QUOTE_NONE))[1:]
     words = [r for r in rows if len(r) >= 12 and r[0] == "5" and r[11].strip()]
     confs = [float(r[10]) for r in words if r[10].lstrip("-").replace(".", "", 1).isdigit() and float(r[10]) >= 0]
@@ -135,10 +138,12 @@ class TesseractOcr:
         for page in pages:
             left = TOTAL_BUDGET - (time.monotonic() - start)
             if left <= 0:
-                raise RuntimeError("फ़ाइल पढ़ने में बहुत समय लग रहा है। कम पन्नों की PDF डालें।")
+                raise RuntimeError(Msg("फ़ाइल पढ़ने में बहुत समय लग रहा है। कम पन्नों की PDF डालें।",
+                                   "Reading is taking too long. Upload a PDF with fewer pages."))
             plots += parse_text(ocr_text(page, min(PAGE_TIMEOUT, left)))["plots"]
         if not plots:
-            raise ValueError("फ़ाइल से कोई खसरा नहीं पढ़ पाए। साफ़ और सीधी फ़ोटो/PDF डालें।")
+            raise ValueError(Msg("फ़ाइल से कोई खसरा नहीं पढ़ पाए। साफ़ और सीधी फ़ोटो/PDF डालें।",
+                                 "No khasra rows could be read. Upload a clear, straight photo or PDF."))
         return Record(district="", plots=plots)
 
 

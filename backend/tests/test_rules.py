@@ -20,4 +20,4 @@ def test_qa_known_term():
 
 
 def test_qa_says_dont_know():
-    assert qa.answer("mutation kaise hota hai").sources == []
+    assert qa.answer("bitcoin ka bhav kya hai").sources == []

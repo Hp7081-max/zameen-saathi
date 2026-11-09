@@ -3,6 +3,8 @@
 import io
 import os
 
+from .messages import Msg
+
 
 def max_pages_from_env() -> int:
     """MAX_PDF_PAGES से सीमा (.env.example में); गलत या खाली मान पर 8।"""
@@ -18,7 +20,7 @@ MAX_SIDE = 3200    # पिक्सेल; बहुत बड़े पन्�
 
 
 class PdfError(ValueError):
-    """संदेश सीधे उपयोगकर्ता को दिखाने लायक (हिंदी) है।"""
+    """संदेश (`Msg`: हिंदी + English) सीधे उपयोगकर्ता को दिखाने लायक है।"""
 
 
 def is_pdf(data: bytes) -> bool:
@@ -31,13 +33,15 @@ def pdf_to_png_pages(data: bytes, max_pages: int = MAX_PAGES) -> list[bytes]:
     try:
         pdf = pdfium.PdfDocument(data)
     except pdfium.PdfiumError as e:
-        raise PdfError("PDF खुल नहीं पाई। हो सकता है वह पासवर्ड वाली या ख़राब हो।") from e
+        raise PdfError(Msg("PDF खुल नहीं पाई। हो सकता है वह पासवर्ड वाली या ख़राब हो।",
+                               "The PDF could not be opened. It may be password-protected or damaged.")) from e
     try:
         n = len(pdf)
         if n == 0:
-            raise PdfError("PDF में कोई पन्ना नहीं मिला।")
+            raise PdfError(Msg("PDF में कोई पन्ना नहीं मिला।", "The PDF has no pages."))
         if n > max_pages:
-            raise PdfError(f"PDF में {n} पन्ने हैं। एक बार में अधिकतम {max_pages} पन्ने डालें।")
+            raise PdfError(Msg(f"PDF में {n} पन्ने हैं। एक बार में अधिकतम {max_pages} पन्ने डालें।",
+                               f"The PDF has {n} pages. Upload at most {max_pages} pages at a time."))
         out: list[bytes] = []
         for i in range(n):
             page = pdf[i]
@@ -53,7 +57,7 @@ def pdf_to_png_pages(data: bytes, max_pages: int = MAX_PAGES) -> list[bytes]:
             img.save(buf, "PNG")
             out.append(buf.getvalue())
         if not out:
-            raise PdfError("PDF में कोई पढ़ने लायक पन्ना नहीं मिला।")
+            raise PdfError(Msg("PDF में कोई पढ़ने लायक पन्ना नहीं मिला।", "The PDF has no readable page."))
         return out
     finally:
         pdf.close()

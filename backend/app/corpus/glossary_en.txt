@@ -1,0 +1,39 @@
+What is a khasra (plot number): A khasra is the separate number given to each piece of land (plot) in a village. The khasra number tells you which piece it is on the village map.
+
+What is a khata (account number): A khata is a group of land parcels recorded in the name of one or more landholders. One khata can include several khasras.
+
+What is a khatauni (record of rights): The khatauni lists the village landholders' names, khata number, khasra numbers, area and share. It is the summary of the land record.
+
+What is a share (hissa): When a plot has several owners, each owner's share is written down. All the shares together must add up to 1 (the whole plot).
+
+What are area and hectare (acre): Land area is written in hectares. One hectare is about 2.47 acres.
+
+What are bigha and biswa: Bigha and biswa are older local units for measuring land. Their size differs from region to region, so ask the tehsil or the lekhpal for the local size before converting them to hectares.
+
+What is dakhil-kharij (mutation): After land is sold, inherited or partitioned, getting the new name entered in the revenue record is called dakhil-kharij (mutation). Without it the khatauni keeps showing the old name. Ask the tehsil how to apply.
+
+What is warasat (inheritance): After an owner dies, getting the heirs' names entered for the land is called warasat. It needs an application at the tehsil and some papers; the tehsil will tell you the exact list.
+
+What are bainama and registry (sale deed): A bainama is the written document of a land sale (sale deed). Registering it at the sub-registrar's office is called registry. Even after registry, a dakhil-kharij (mutation) is usually needed to change the name in the khatauni; ask the tehsil how it works in your district.
+
+Who is the lekhpal (patwari): The lekhpal is the village-level revenue official who keeps land records such as khasra and khatauni, and helps the tehsil with measurements and inspection reports. He is usually the first person to contact about a mistake in the record.
+
+What are the tehsil and the tehsildar: The tehsil is the local office for land records, mutation and other revenue work. The tehsildar is its chief officer.
+
+What is a shajra (village map, naksha): The shajra is the map of the village or fields that shows the position and boundary of each khasra. Comparing the area in the khatauni with the area on the map can reveal differences.
+
+What is paimaish (land measurement, survey): Paimaish means measuring the land. If you doubt a boundary or an area, you can apply to the revenue department for a measurement. The tehsil will tell you the process and the fee.
+
+What is chakbandi (consolidation): In chakbandi, scattered small fields are combined so that a farmer receives land in one or fewer pieces, which makes farming easier. In a village under chakbandi the khasra numbers can change.
+
+What is bhulekh (online land record): Bhulekh is the state government's online portal where you can view khasra and khatauni copies. If its copy and the tehsil's record seem to differ, meet the lekhpal.
+
+What is a warning sign (flag): A warning sign is not a verdict; it only suggests looking again. It does not mean the record is wrong or that anything fraudulent happened. Only the tehsil or the lekhpal can confirm.
+
+What is a model estimate (machine learning): Some warning signs come from our computer model, which learned from made-up (synthetic) examples. These are estimates and their accuracy on real khatauni records is not yet proven, so treat them as less certain than the rule-based signs.
+
+What if a number was read wrongly (OCR, misread, wrong number): Some digits can be misread from a photo. In the "What we read" table, correct them against your khatauni, then check again. A clear, straight, well-lit photo gives fewer mistakes.
+
+Where does my data stay (privacy, data, security): Your photo or PDF stays in the server's memory only while it is checked and is never saved. Everything is erased when you sign out or after 30 minutes. Your phone number is kept only as a hash.
+
+What does this tool do (zameen saathi): This tool explains your khatauni in plain language and shows warning signs. It does not give legal verdicts. The tehsil or the lekhpal does the real checking.
