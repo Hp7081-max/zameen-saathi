@@ -8,8 +8,14 @@ services:
       AUTH_SALT: badal-do
       CORS_ORIGINS: http://localhost:8080
       TRUSTED_PROXY_HOPS: "1"   # backend के आगे सिर्फ़ frontend का nginx है; IP-सीमा असली क्लाइंट पर चले
+      DATA_DIR: /data           # v6: अनाम गिनती (stats.json) और संपर्क संदेश (contact.jsonl) यहाँ बनते हैं
+      # ADMIN_TOKEN: कोई-लंबा-गुप्त-शब्द   # खोलो तो /api/admin/contact से संदेश पढ़ सकते हो
+    volumes: ["zs-data:/data"]
     expose: ["8000"]            # बाहर नहीं खोला: सीधा पहुँच हुई तो X-Forwarded-For नकली लग सकता है
   frontend:
     build: ./frontend
     ports: ["8080:80"]
     depends_on: [backend]
+
+volumes:
+  zs-data:

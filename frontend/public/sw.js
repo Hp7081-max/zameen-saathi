@@ -1,6 +1,6 @@
 /* ऑफ़लाइन में भी ऐप खुले: पन्ना, JS/CSS, फ़ॉन्ट, आइकन और नमूना फ़ाइलें cache होती हैं।
    सुरक्षा: /api/* (OTP, फ़ोटो, जाँच के नतीजे) को यह कभी छूता नहीं, न cache में रखता है। */
-const CACHE = "zs-shell-v1";
+const CACHE = "zs-shell-v2";
 
 self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/"]).catch(() => undefined))); });
 

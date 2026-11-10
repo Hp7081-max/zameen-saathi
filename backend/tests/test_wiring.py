@@ -26,7 +26,8 @@ def test_expected_routes_and_dependencies():
     r = _routes()
     for key in [("POST", "/api/consent/request"), ("POST", "/api/consent/verify"), ("POST", "/api/extract"),
                 ("POST", "/api/analyze"), ("POST", "/api/ask"), ("GET", "/api/sample"), ("GET", "/api/topics"),
-                ("DELETE", "/api/session"), ("GET", "/api/health")]:
+                ("DELETE", "/api/session"), ("GET", "/api/health"),
+                ("GET", "/api/stats"), ("POST", "/api/contact"), ("GET", "/api/admin/contact")]:
         assert key in r, key
 
     def deps(key):
@@ -35,6 +36,8 @@ def test_expected_routes_and_dependencies():
     assert auth.limit_verify_ip in deps(("POST", "/api/consent/verify"))
     ex = deps(("POST", "/api/extract"))
     assert ex == [auth.limit_extract_ip, auth.limit_extract]  # पहले IP, फिर session
+    assert auth.limit_contact_ip in deps(("POST", "/api/contact"))
+    assert auth.limit_stats_ip in deps(("GET", "/api/stats"))
     for key in [("POST", "/api/analyze"), ("POST", "/api/ask"), ("GET", "/api/sample"), ("GET", "/api/topics")]:
         assert auth.require_session in deps(key), key
 

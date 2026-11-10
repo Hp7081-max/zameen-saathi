@@ -93,3 +93,25 @@ class OtpResponse(BaseModel):
 class SessionResponse(BaseModel):
     token: str
     expires_in: int
+
+
+class ContactRequest(BaseModel):
+    name: str = Field(default="", max_length=300)
+    contact: str = Field(default="", max_length=300)  # फ़ोन या ईमेल, वैकल्पिक
+    message: str = Field(max_length=5000)
+    kind: str = "feedback"  # feedback | partner | problem | other
+    website: str = ""  # छिपा खाना (honeypot): इंसान खाली छोड़ता है
+
+
+class ContactResponse(BaseModel):
+    ok: bool = True
+
+
+class StatsResponse(BaseModel):
+    since: str  # गिनती कब से (UTC, ISO)
+    logins: int = 0
+    files_read: int = 0
+    plots_read: int = 0
+    analyses: int = 0
+    flags_found: int = 0
+    flags_high: int = 0

@@ -29,27 +29,45 @@ export const IconPhone = (p: P) => <Svg {...p}><rect x="7" y="3" width="10" heig
 export const IconWifiOff = (p: P) => <Svg {...p}><path d="M3 3l18 18M5 10a10 10 0 015-2.5M19 10a10 10 0 00-4.5-2.4M8.5 13.5a5.5 5.5 0 016.2-.6M12 18h.01" /></Svg>;
 export const IconAsk = (p: P) => <Svg {...p}><path d="M5 5h14v10H11l-4 4v-4H5z" /><path d="M10 9.5a2 2 0 114 0c0 1.2-2 1.5-2 2.8M12 13.7h.01" /></Svg>;
 
+export const IconMenu = (p: P) => <Svg {...p}><path d="M4 7h16M4 12h16M4 17h16" /></Svg>;
+export const IconSun = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" /></Svg>;
+export const IconMoon = (p: P) => <Svg {...p}><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z" /></Svg>;
+export const IconHome = (p: P) => <Svg {...p}><path d="M4 11l8-7 8 7M6 10v10h12V10M10 20v-6h4v6" /></Svg>;
+export const IconUser = (p: P) => <Svg {...p}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></Svg>;
+export const IconList = (p: P) => <Svg {...p}><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></Svg>;
+export const IconPin = (p: P) => <Svg {...p}><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.4" /></Svg>;
+export const IconInfo = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8v.01" /></Svg>;
+export const IconMail = (p: P) => <Svg {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 7l8.5 6 8.5-6" /></Svg>;
+export const IconShield = (p: P) => <Svg {...p}><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" /></Svg>;
+export const IconDoc = (p: P) => <Svg {...p}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4M9 12h6M9 16h4" /></Svg>;
+export const IconDownload = (p: P) => <Svg {...p}><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></Svg>;
+export const IconExternal = (p: P) => <Svg {...p}><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" /></Svg>;
+export const IconChevron = (p: P) => <Svg {...p}><path d="M6 9l6 6 6-6" /></Svg>;
+export const IconTrend = (p: P) => <Svg {...p}><path d="M3 17l6-6 4 4 8-8M15 7h6v6" /></Svg>;
+export const IconLeaf = (p: P) => <Svg {...p}><path d="M5 19c0-9 5-14 15-14 0 10-5 15-14 15M5 19c2-5 5-8 9-10" /></Svg>;
+export const IconPhoneCall = (p: P) => <Svg {...p}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" /></Svg>;
+
 /** गंभीरता का आकार: रंग के बिना भी पहचाना जाए (त्रिकोण / हीरा / गोला)। */
 export function SeverityMark({ sev, size = 18 }: { sev: Severity; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 20 20", "aria-hidden": true, focusable: "false" as const, className: `sevmark ${sev}` };
-  if (sev === "high") return <svg {...common}><path d="M10 2.5L18.2 17H1.8z" strokeLinejoin="round" /><path d="M10 7.5v5M10 14.6v.1" stroke="var(--paper)" strokeWidth="1.9" strokeLinecap="round" /></svg>;
-  if (sev === "medium") return <svg {...common}><path d="M10 2l8 8-8 8-8-8z" strokeLinejoin="round" /><path d="M10 6.8v4M10 13.2v.1" stroke="var(--ink)" strokeWidth="1.9" strokeLinecap="round" /></svg>;
-  return <svg {...common}><circle cx="10" cy="10" r="8" /><path d="M10 9v5M10 6v.1" stroke="var(--paper)" strokeWidth="1.9" strokeLinecap="round" /></svg>;
+  if (sev === "high") return <svg {...common}><path d="M10 2.5L18.2 17H1.8z" strokeLinejoin="round" /><path d="M10 7.5v5M10 14.6v.1" stroke="var(--on-red)" strokeWidth="1.9" strokeLinecap="round" /></svg>;
+  if (sev === "medium") return <svg {...common}><path d="M10 2l8 8-8 8-8-8z" strokeLinejoin="round" /><path d="M10 6.8v4M10 13.2v.1" stroke="var(--on-amber)" strokeWidth="1.9" strokeLinecap="round" /></svg>;
+  return <svg {...common}><circle cx="10" cy="10" r="8" /><path d="M10 9v5M10 6v.1" stroke="var(--card)" strokeWidth="1.9" strokeLinecap="round" /></svg>;
 }
 
-/** लोगो: चार खेत-टुकड़े, एक पर तिरछी रेखाएँ (जाँचने लायक खेत)। */
+/** लोगो: रंगीन चौकोर के भीतर चार खेत-टुकड़े, एक पर तिरछी रेखाएँ (जाँचने लायक खेत)। रंग थीम से आते हैं। */
 export function Logo({ size = 34 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" focusable="false" className="logo">
       <defs>
         <pattern id="logo-h" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="6" height="6" fill="#f2c6c0" /><rect width="2.2" height="6" fill="#a3281f" />
+          <rect width="6" height="6" fill="var(--logo-hatch-bg)" /><rect width="2.2" height="6" fill="var(--logo-hatch)" />
         </pattern>
       </defs>
-      <rect width="48" height="48" rx="10" fill="#1b2a57" />
-      <g stroke="#fffefb" strokeWidth="1.6" strokeLinejoin="round">
-        <path d="M8 11l17-2 2 15-18 2z" fill="#dcebd6" /><path d="M29 9l11 3-2 12-9-1z" fill="url(#logo-h)" />
-        <path d="M9 28l18-2 2 14-17-1z" fill="#d5deee" /><path d="M31 26l8 1-1 12-8 1z" fill="#f7e2a8" />
+      <rect x="1" y="1" width="46" height="46" rx="12" fill="var(--logo-bg)" stroke="var(--logo-line)" strokeWidth="1.5" />
+      <g stroke="var(--logo-gap)" strokeWidth="1.6" strokeLinejoin="round">
+        <path d="M9 12l16-2 2 14-17 2z" fill="var(--logo-a)" /><path d="M29 10l10 3-2 11-9-1z" fill="url(#logo-h)" />
+        <path d="M10 29l17-2 2 12-16-1z" fill="var(--logo-b)" /><path d="M31 27l7 1-1 11-7 1z" fill="var(--logo-c)" />
       </g>
     </svg>
   );

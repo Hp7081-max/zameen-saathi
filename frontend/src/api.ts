@@ -91,7 +91,16 @@ export const extract = (file: File): Promise<LandRecord> => {
   d.append("file", file);
   return call<LandRecord>("/api/extract", { method: "POST", headers: auth(), body: d }, 170_000);
 };
-export const analyze = (rec: LandRecord) => post<Analysis>("/api/analyze", rec, 60_000);
+/** `demo`: नमूना गाँव की जाँच है, इसलिए सर्वर की "लाइव गिनती" में नहीं जुड़ती। */
+export const analyze = (rec: LandRecord, demo = false) => post<Analysis>(`/api/analyze${demo ? "?demo=1" : ""}`, rec, 60_000);
 export const ask = (question: string, lang: Lang) => post<Answer>("/api/ask", { question, lang });
 export const fetchSample = (lang: Lang) => get<LandRecord>(`/api/sample?lang=${lang}`);
 export const fetchTopics = (lang: Lang) => get<{ lang: Lang; topics: string[] }>(`/api/topics?lang=${lang}`);
+
+export type Stats = { since: string; logins: number; files_read: number; plots_read: number; analyses: number; flags_found: number; flags_high: number };
+/** होम पन्ने की अनाम गिनतियाँ (लॉगिन नहीं चाहिए)। */
+export const fetchStats = () => call<Stats>("/api/stats", {}, 10_000);
+
+export type ContactKind = "feedback" | "partner" | "problem" | "other";
+export type ContactBody = { name: string; contact: string; message: string; kind: ContactKind; website: string };
+export const sendContact = (b: ContactBody) => post<{ ok: boolean }>("/api/contact", b, 20_000);

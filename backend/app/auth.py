@@ -261,3 +261,5 @@ def ip_limit(bucket: str, env: str, default: int, window: int = 600):
 limit_otp_ip = ip_limit("otp", "MAX_OTP_PER_IP_10MIN", 30)
 limit_verify_ip = ip_limit("verify", "MAX_VERIFY_PER_IP_10MIN", 60)
 limit_extract_ip = ip_limit("extract", "MAX_EXTRACT_PER_IP_10MIN", 100)
+limit_contact_ip = ip_limit("contact", "MAX_CONTACT_PER_IP_10MIN", 5)      # संदेश: कम सीमा (spam से बचाव)
+limit_stats_ip = ip_limit("stats", "MAX_STATS_PER_IP_10MIN", 600)          # होम पन्ना हर 30 सेकंड पूछता है; CSC के कई लोग एक IP से

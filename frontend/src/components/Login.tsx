@@ -5,7 +5,7 @@ import { describeError } from "../errors";
 import type { Strings } from "../i18n";
 import { useCountdown } from "../hooks";
 
-type Props = { s: Strings; lang: Lang; online: boolean; onDone: (session: Session) => void };
+type Props = { s: Strings; lang: Lang; online: boolean; onDone: (session: Session, phone: string) => void };
 
 export default function Login({ s, lang, online, onDone }: Props) {
   const [phone, setPhone] = useState("");
@@ -29,7 +29,7 @@ export default function Login({ s, lang, online, onDone }: Props) {
     try {
       const r = await verifyOtp(phone, otp);
       setToken(r.token);
-      onDone(r);
+      onDone(r, phone);
     } catch (e) { setErr(e); } finally { setBusy(false); }
   };
 
